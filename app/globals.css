@@ -1,0 +1,73 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+@keyframes scanBeam {
+  0%   { transform: translateY(-20px); opacity: 0; }
+  5%   { opacity: 1; }
+  90%  { opacity: 0.6; }
+  100% { transform: translateY(100vh); opacity: 0; }
+}
+
+@keyframes orbFloat {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33%       { transform: translate(30px, -20px) scale(1.05); }
+  66%       { transform: translate(-20px, 15px) scale(0.97); }
+}
+
+@keyframes orbFloat2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  40%       { transform: translate(-25px, 20px) scale(1.04); }
+  70%       { transform: translate(15px, -15px) scale(0.98); }
+}
+
+.scan-beam {
+  animation: scanBeam 8s ease-in-out infinite;
+}
+
+.orb-1 { animation: orbFloat  14s ease-in-out infinite; }
+.orb-2 { animation: orbFloat2 18s ease-in-out infinite; }
+.orb-3 { animation: orbFloat  22s ease-in-out infinite reverse; }
+
+@media (prefers-reduced-motion: reduce) {
+  .scan-beam, .orb-1, .orb-2, .orb-3 {
+    animation: none;
+  }
+}
+
+.gradient-text-accessible {
+  background: linear-gradient(90deg, #0fcfcf 0%, #22c55e 55%, #84cc16 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gradient-text-toall {
+  background: linear-gradient(90deg, #facc15 0%, #f97316 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
