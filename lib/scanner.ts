@@ -1,4 +1,3 @@
-import { chromium as playwright } from 'playwright-core'
 import { resolve } from 'path'
 import { readFileSync } from 'fs'
 
@@ -35,15 +34,11 @@ const axeSource = readFileSync(
 )
 
 export async function runScan(url: string): Promise<ScanResult> {
-  const chromium = require('@sparticuz/chromium')
-  const { chromiumPath, args } = {
-    chromiumPath: await chromium.executablePath(),
+  const chromium = require('chrome-aws-lambda')
+  const browser = await chromium.playwright.chromium.launch({
+    executablePath: await chromium.executablePath,
     args: chromium.args,
-  }
-  const browser = await playwright.launch({
-    executablePath: chromiumPath,
-    args,
-    headless: true,
+    headless: chromium.headless,
   })
 
   try {
