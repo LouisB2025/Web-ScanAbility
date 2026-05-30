@@ -1,3 +1,5 @@
+import chromium from '@sparticuz/chromium'
+import puppeteer from 'puppeteer-core'
 import { resolve } from 'path'
 import { readFileSync } from 'fs'
 
@@ -34,22 +36,21 @@ const axeSource = readFileSync(
 )
 
 export async function runScan(url: string): Promise<ScanResult> {
-  const chromium = require('chrome-aws-lambda')
-  const browser = await chromium.playwright.chromium.launch({
-    executablePath: await chromium.executablePath,
+  const browser = await puppeteer.launch({
     args: chromium.args,
-    headless: chromium.headless,
+    executablePath: await chromium.executablePath(),
+    headless: true,
   })
 
   try {
     const page = await browser.newPage()
 
     // 390px catches mobile nav elements hidden via Tailwind lg:hidden
-    await page.setViewportSize({ width: 390, height: 844 })
+    await page.setViewport({ width: 390, height: 844 })
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 })
 
     // Wait for JS frameworks to settle
-    await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {})
+    await page.waitForNetworkIdle({ timeout: 15000 }).catch(() => {})
 
     // Scroll to bottom to trigger lazy-loaded content, then back to top
     await page.evaluate(async () => {
@@ -69,7 +70,7 @@ export async function runScan(url: string): Promise<ScanResult> {
     })
 
     // Brief pause for scroll-triggered renders to settle
-    await page.waitForTimeout(1500)
+    await new Promise(r => setTimeout(r, 1500))
 
     // Inject axe-core via content — no filesystem path needed at runtime
     await page.addScriptTag({ content: axeSource })
