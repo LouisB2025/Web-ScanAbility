@@ -1,13 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ['puppeteer-core', '@sparticuz/chromium'],
-  webpack: (config, { isServer }) => {
-    if (isServer) {
-      config.externals = [...(config.externals || []), '@sparticuz/chromium']
-    }
-    return config
-  },
+  serverExternalPackages: ['playwright-core', '@sparticuz/chromium'],
 };
 
 export default nextConfig;

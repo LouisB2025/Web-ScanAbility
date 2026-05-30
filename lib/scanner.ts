@@ -1,4 +1,4 @@
-import puppeteer from 'puppeteer-core'
+import { chromium as playwright } from 'playwright-core'
 import { resolve } from 'path'
 import { readFileSync } from 'fs'
 
@@ -28,29 +28,6 @@ function extractWcagCriterion(tags: string[]): string {
   return d
 }
 
-async function launchBrowser() {
-  const isServerless = !!process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.VERCEL === '1'
-
-  if (isServerless) {
-    const chromium = (await import('@sparticuz/chromium')).default
-    return puppeteer.launch({
-      args: chromium.args,
-      executablePath: await chromium.executablePath(),
-      headless: true,
-    })
-  }
-
-  // Local dev — use whichever Chromium is installed on the system
-  const executablePath =
-    process.platform === 'darwin'
-      ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
-      : process.platform === 'win32'
-      ? 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
-      : '/usr/bin/google-chrome'
-
-  return puppeteer.launch({ executablePath, headless: true })
-}
-
 // Read axe-core once at module load
 const axeSource = readFileSync(
   resolve(process.cwd(), 'node_modules/axe-core/axe.min.js'),
@@ -58,16 +35,26 @@ const axeSource = readFileSync(
 )
 
 export async function runScan(url: string): Promise<ScanResult> {
-  const browser = await launchBrowser()
+  const chromium = require('@sparticuz/chromium')
+  const { chromiumPath, args } = {
+    chromiumPath: await chromium.executablePath(),
+    args: chromium.args,
+  }
+  const browser = await playwright.launch({
+    executablePath: chromiumPath,
+    args,
+    headless: true,
+  })
+
   try {
     const page = await browser.newPage()
 
     // 390px catches mobile nav elements hidden via Tailwind lg:hidden
-    await page.setViewport({ width: 390, height: 844 })
+    await page.setViewportSize({ width: 390, height: 844 })
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 })
 
     // Wait for JS frameworks to settle
-    await page.waitForNetworkIdle({ timeout: 15000 }).catch(() => {})
+    await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {})
 
     // Scroll to bottom to trigger lazy-loaded content, then back to top
     await page.evaluate(async () => {
@@ -87,7 +74,7 @@ export async function runScan(url: string): Promise<ScanResult> {
     })
 
     // Brief pause for scroll-triggered renders to settle
-    await new Promise(r => setTimeout(r, 1500))
+    await page.waitForTimeout(1500)
 
     // Inject axe-core via content — no filesystem path needed at runtime
     await page.addScriptTag({ content: axeSource })
@@ -98,7 +85,7 @@ export async function runScan(url: string): Promise<ScanResult> {
       return await window.axe.run()
     })
 
-    // One row per failing node — matches AccIQ granularity
+    // One row per failing node
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const violations: ScanViolation[] = axeResults.violations.flatMap((v: any) =>
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
