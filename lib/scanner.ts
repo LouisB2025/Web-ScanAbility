@@ -28,7 +28,17 @@ function extractWcagCriterion(tags: string[]): string {
 }
 
 export async function runScan(url: string): Promise<ScanResult> {
-  const browser = await chromium.launch()
+  const browser = await chromium.launch({
+    headless: true,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--single-process',
+      '--no-zygote',
+    ],
+  })
   try {
     const page = await browser.newPage()
 
