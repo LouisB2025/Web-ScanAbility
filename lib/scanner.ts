@@ -1,5 +1,6 @@
-import { chromium } from 'playwright'
+import { chromium as playwrightChromium } from 'playwright-core'
 import { resolve } from 'path'
+import { readFileSync } from 'fs'
 
 export interface ScanViolation {
   criticality: 'critical' | 'serious' | 'moderate' | 'minor'
@@ -27,8 +28,30 @@ function extractWcagCriterion(tags: string[]): string {
   return d
 }
 
+async function launchBrowser() {
+  const isServerless = !!process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.VERCEL === '1'
+
+  if (isServerless) {
+    const chromium = (await import('@sparticuz/chromium')).default
+    return playwrightChromium.launch({
+      args: chromium.args,
+      executablePath: await chromium.executablePath(),
+      headless: true,
+    })
+  }
+
+  // Local dev: use system Playwright Chromium
+  return playwrightChromium.launch({ headless: true })
+}
+
+// Read axe-core once at module load — avoids repeated disk reads
+const axeSource = readFileSync(
+  resolve(process.cwd(), 'node_modules/axe-core/axe.min.js'),
+  'utf-8'
+)
+
 export async function runScan(url: string): Promise<ScanResult> {
-  const browser = await chromium.launch()
+  const browser = await launchBrowser()
   try {
     const page = await browser.newPage()
 
@@ -60,9 +83,8 @@ export async function runScan(url: string): Promise<ScanResult> {
     // Brief pause for any scroll-triggered renders to settle
     await page.waitForTimeout(1500)
 
-    await page.addScriptTag({
-      path: resolve(process.cwd(), 'node_modules/axe-core/axe.js'),
-    })
+    // Inject axe-core via content (works in serverless — no filesystem path needed at runtime)
+    await page.addScriptTag({ content: axeSource })
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const axeResults: any = await page.evaluate(async () => {
