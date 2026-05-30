@@ -1,7 +1,5 @@
-import chromium from '@sparticuz/chromium'
-import puppeteer from 'puppeteer-core'
+import { chromium } from 'playwright'
 import { resolve } from 'path'
-import { readFileSync } from 'fs'
 
 export interface ScanViolation {
   criticality: 'critical' | 'serious' | 'moderate' | 'minor'
@@ -29,28 +27,18 @@ function extractWcagCriterion(tags: string[]): string {
   return d
 }
 
-// Read axe-core once at module load
-const axeSource = readFileSync(
-  resolve(process.cwd(), 'node_modules/axe-core/axe.min.js'),
-  'utf-8'
-)
-
 export async function runScan(url: string): Promise<ScanResult> {
-  const browser = await puppeteer.launch({
-    args: chromium.args,
-    executablePath: await chromium.executablePath(),
-    headless: true,
-  })
-
+  const browser = await chromium.launch()
   try {
     const page = await browser.newPage()
 
-    // 390px catches mobile nav elements hidden via Tailwind lg:hidden
-    await page.setViewport({ width: 390, height: 844 })
+    // 390px catches mobile nav elements (e.g. Tailwind's lg:hidden buttons)
+    // that are display:none at desktop and invisible to axe at 1280px
+    await page.setViewportSize({ width: 390, height: 844 })
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 })
 
-    // Wait for JS frameworks to settle
-    await page.waitForNetworkIdle({ timeout: 15000 }).catch(() => {})
+    // Wait for JS frameworks to finish rendering
+    await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {})
 
     // Scroll to bottom to trigger lazy-loaded content, then back to top
     await page.evaluate(async () => {
@@ -69,11 +57,12 @@ export async function runScan(url: string): Promise<ScanResult> {
       })
     })
 
-    // Brief pause for scroll-triggered renders to settle
-    await new Promise(r => setTimeout(r, 1500))
+    // Brief pause for any scroll-triggered renders to settle
+    await page.waitForTimeout(1500)
 
-    // Inject axe-core via content — no filesystem path needed at runtime
-    await page.addScriptTag({ content: axeSource })
+    await page.addScriptTag({
+      path: resolve(process.cwd(), 'node_modules/axe-core/axe.js'),
+    })
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const axeResults: any = await page.evaluate(async () => {
@@ -81,7 +70,7 @@ export async function runScan(url: string): Promise<ScanResult> {
       return await window.axe.run()
     })
 
-    // One row per failing node
+    // One row per failing node — matches AccIQ granularity
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const violations: ScanViolation[] = axeResults.violations.flatMap((v: any) =>
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
