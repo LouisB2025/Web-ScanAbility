@@ -3,7 +3,8 @@ import { runScan } from '@/lib/scanner'
 import { supabase } from '@/lib/supabase'
 import { generateCodeFixes, type FixResult } from '@/lib/claude'
 
-export const maxDuration = 120
+export const runtime = 'nodejs'
+export const maxDuration = 60
 
 export async function POST(req: NextRequest) {
   let url: string
