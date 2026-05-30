@@ -1,4 +1,4 @@
-import { chromium as playwrightChromium } from 'playwright-core'
+import puppeteer from 'puppeteer-core'
 import { resolve } from 'path'
 import { readFileSync } from 'fs'
 
@@ -33,18 +33,25 @@ async function launchBrowser() {
 
   if (isServerless) {
     const chromium = (await import('@sparticuz/chromium')).default
-    return playwrightChromium.launch({
+    return puppeteer.launch({
       args: chromium.args,
       executablePath: await chromium.executablePath(),
       headless: true,
     })
   }
 
-  // Local dev: use system Playwright Chromium
-  return playwrightChromium.launch({ headless: true })
+  // Local dev — use whichever Chromium is installed on the system
+  const executablePath =
+    process.platform === 'darwin'
+      ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+      : process.platform === 'win32'
+      ? 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
+      : '/usr/bin/google-chrome'
+
+  return puppeteer.launch({ executablePath, headless: true })
 }
 
-// Read axe-core once at module load — avoids repeated disk reads
+// Read axe-core once at module load
 const axeSource = readFileSync(
   resolve(process.cwd(), 'node_modules/axe-core/axe.min.js'),
   'utf-8'
@@ -55,13 +62,12 @@ export async function runScan(url: string): Promise<ScanResult> {
   try {
     const page = await browser.newPage()
 
-    // 390px catches mobile nav elements (e.g. Tailwind's lg:hidden buttons)
-    // that are display:none at desktop and invisible to axe at 1280px
-    await page.setViewportSize({ width: 390, height: 844 })
+    // 390px catches mobile nav elements hidden via Tailwind lg:hidden
+    await page.setViewport({ width: 390, height: 844 })
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 })
 
-    // Wait for JS frameworks to finish rendering
-    await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {})
+    // Wait for JS frameworks to settle
+    await page.waitForNetworkIdle({ timeout: 15000 }).catch(() => {})
 
     // Scroll to bottom to trigger lazy-loaded content, then back to top
     await page.evaluate(async () => {
@@ -80,10 +86,10 @@ export async function runScan(url: string): Promise<ScanResult> {
       })
     })
 
-    // Brief pause for any scroll-triggered renders to settle
-    await page.waitForTimeout(1500)
+    // Brief pause for scroll-triggered renders to settle
+    await new Promise(r => setTimeout(r, 1500))
 
-    // Inject axe-core via content (works in serverless — no filesystem path needed at runtime)
+    // Inject axe-core via content — no filesystem path needed at runtime
     await page.addScriptTag({ content: axeSource })
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
