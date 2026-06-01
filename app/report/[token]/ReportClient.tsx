@@ -63,6 +63,7 @@ interface Scan {
   serious_count: number
   moderate_count: number
   minor_count: number
+  scan_note?: string | null
 }
 
 interface Violation {
@@ -287,11 +288,21 @@ export default function ReportClient({
 
         {/* Violations */}
         {scan.total_count === 0 ? (
-          <div className="border border-green-200 bg-green-50 rounded-xl p-10 text-center">
-            <p className="text-green-700 font-semibold text-lg">No violations found</p>
-            <p className="text-green-600 text-sm mt-1">
-              This page passed all automated WCAG 2.2 checks.
-            </p>
+          <div className="space-y-3">
+            {scan.scan_note && (
+              <div className="border border-amber-200 bg-amber-50 rounded-xl px-5 py-4 flex items-start gap-3">
+                <span className="text-amber-500 text-lg leading-none mt-0.5" aria-hidden="true">⚠</span>
+                <p className="text-amber-800 text-sm">{scan.scan_note}</p>
+              </div>
+            )}
+            <div className="border border-green-200 bg-green-50 rounded-xl p-10 text-center">
+              <p className="text-green-700 font-semibold text-lg">No violations found</p>
+              <p className="text-green-600 text-sm mt-1">
+                {scan.scan_note
+                  ? 'No automated violations were detected.'
+                  : 'This page passed all automated WCAG 2.2 checks.'}
+              </p>
+            </div>
           </div>
         ) : (
           <>

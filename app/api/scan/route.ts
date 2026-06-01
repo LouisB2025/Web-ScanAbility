@@ -84,6 +84,29 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error('Scan error:', err)
     const msg = err instanceof Error ? err.message : 'Unknown error'
+
+    if (msg.includes('Could not load script')) {
+      const share_token = crypto.randomUUID().replace(/-/g, '').slice(0, 12)
+      const { error: scanError } = await supabase
+        .from('scans')
+        .insert({
+          url,
+          scanned_at: new Date().toISOString(),
+          has_violations: false,
+          total_count: 0,
+          critical_count: 0,
+          serious_count: 0,
+          moderate_count: 0,
+          minor_count: 0,
+          share_token,
+          scan_note: 'This site may restrict automated scanning tools. Results may be incomplete.',
+        })
+        .select()
+        .single()
+      if (scanError) console.error('Supabase insert error:', scanError)
+      return NextResponse.json({ token: share_token, total: 0 })
+    }
+
     return NextResponse.json(
       { error: `Scan failed: ${msg}. The page may be unreachable or blocking automated access.` },
       { status: 500 }
