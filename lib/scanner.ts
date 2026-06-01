@@ -37,6 +37,7 @@ export async function runScan(url: string): Promise<ScanResult> {
       '--disable-gpu',
       '--single-process',
       '--no-zygote',
+      '--shm-size=1gb',
     ],
   })
   try {
